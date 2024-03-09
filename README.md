@@ -1,7 +1,7 @@
 # HomeLab-1
 This repository is for documenting my first homelab to improve my chances of landing an entry-level SOC analyst job
 
-This Homelab will consist of six different parts:
+This Homelab will consist of five different parts:
 Part 1: Setting up a small virtualization environment (2 small VMs)
 Part 2: Making and observing some noise
 Part 3: Emulating an adversary to craft detections
