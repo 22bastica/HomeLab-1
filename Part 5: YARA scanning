@@ -2,4 +2,121 @@ This section expands on the detection rules by leveraging automated YARA scannin
 
 Add a YARA signature for the sliver c2 payload
 
-1.
+1. In limaCharlie -> automation -> YARA rules -> name: sliver -> save rule as sliver-process
+    a. ruleblock :(https://gist.githubusercontent.com/ecapuano/f40d5a99d19500538984bd88996cfe68/raw/12587427383def9586580647de13b4a89b9d4130/sliver_broad.yara)
+
+2. create new D&R rule
+    detect(YARA detections not involving a process object):event: YARA_DETECTION
+            op: and
+            rules:
+              - not: true
+                op: exists
+                path: event/PROCESS/*
+              - op: exists
+                path: event/RULE_NAME
+    respond- action: report
+            name: YARA Detection {{ .event.RULE_NAME }}
+          - action: add tag
+            tag: yara_detection
+            ttl: 80000
+    a. Save as YARA DETECTION
+
+3. create a new rule (YARA detections WITH a process object
+detect: event: YARA_DETECTION
+        op: and
+        rules:
+          - op: exists
+            path: event/RULE_NAME
+          - op: exists
+            path: event/PROCESS/*
+
+respond - action: report
+          name: YARA Detection in Memory {{ .event.RULE_NAME }}
+        - action: add tag
+          tag: yara_detection_memory
+          ttl: 80000
+-name: YARA DETECTION IN MEMORY
+
+Test the YARA signature
+
+1. go to sensors -> console -> yara_scan hive://yara/sliver -f C:\Users\User\Downloads\[payload_name].exe to kick off a manual YARA scan of out sliver payload
+
+Automatic YARA scan on downloadee EXEs
+
+Automation -> D&R rules
+rulename: YARA Scan Downloaded EXE
+detect (looking fo rNEW .exe files to appear in the user's downloads directory):
+event: NEW_DOCUMENT
+op: and
+rules:
+  - op: starts with
+    path: event/FILE_PATH
+    value: C:\Users\
+  - op: contains
+    path: event/FILE_PATH
+    value: \Downloads\
+  - op: ends with
+    path: event/FILE_PATH
+    value: .exe
+
+respond (generates an alert for the EXE creation and starts a YARA scan using the sliver signature)
+- action: report
+  name: EXE dropped in Downloads directory
+- action: task
+  command: >-
+    yara_scan hive://yara/sliver -f "{{ .event.FILE_PATH
+    }}"
+  investigation: Yara Scan Exe
+  suppression:
+    is_global: false
+    keys:
+      - '{{ .event.FILE_PATH }}'
+      - Yara Scan Exe
+    max_count: 1
+    period: 1m
+
+
+Auto Scan processes launched from the downloads directory:
+detect (matching any processes that is launched from a user's downloads directory)
+event: NEW_PROCESS
+op: and
+rules:
+  - op: starts with
+    path: event/FILE_PATH
+    value: C:\Users\
+  - op: contains
+    path: event/FILE_PATH
+    value: \Downloads\
+
+respond (scanning the actual process, not the file path)
+- action: report
+  name: Execution from Downloads directory
+- action: task
+  command: yara_scan hive://yara/sliver-process --pid "{{ .event.PROCESS_ID }}"
+  investigation: Yara Scan Process
+  suppression:
+    is_global: false
+    keys:
+      - '{{ .event.PROCESS_ID }}'
+      - Yara Scan Process
+    max_count: 1
+    period: 1m
+
+Time to trigger the rules!
+
+1. move the sliver payload to downloads with this command: 'Move-Item -Path C:\Users\User\Downloads\[payload_name].exe -Destination C:\Users\User\Documents\[payload_name].exe" on powershell
+
+2. now we are putting it back to generat ethe new_document event for an exe being put into the downloads folder : 'Move-Item -Path C:\Users\User\Documents\[payload_name].exe -Destination C:\Users\User\Downloads\[payload_name].exe'
+
+3. In the detections tab I cna see the initial alert for an exe dropped in downloads followed by a YARA detection once the scan found sliver in the exe
+
+Test the New_process rule:
+
+1. launch an admin powershell prompt
+    a. kill any existing instances of our sliver c2 : 'Get-Process [payload_name] | Stop-Process'
+
+2. time to execute the sliver payload to generate the new_process event: 'C:\Users\User\Downloads\[payload_name].exe'
+
+3. In the detections tab I can see an initial aler for Excecution from downloads followed by a YARA detection in memory once the scan found sliver in the exe
+
+thanks for reading!!
