@@ -1,0 +1,5 @@
+This section expands on the detection rules by leveraging automated YARA scanning
+
+Add a YARA signature for the sliver c2 payload
+
+1.
