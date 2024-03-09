@@ -1,0 +1,14 @@
+This part will show me emulating an adversary and making rules in LimaCharlie to detect said adversary
+
+Getting Adversarial:
+
+1. First off, get back intot he Sliver C2 session from the previous part. The goal is to start doing some shady activities that we would want to be able to detect.
+
+2. The next few commands need to be ran in the sliver session on the victim host
+  a. starting out, I need to see what privileges I have: 'getprivs', really the main one I am looking for is 'SeDebugPrivilege'
+  b. now its time to do the classic move for stealing credentials; dump the lsass.exe process from memory: 'procdump -n lsass.exe -s lsass.dmp'
+    -this dumps the remote process from memory and saves it locally on the C2 server
+
+Now Time to Detect It:
+
+1. 
