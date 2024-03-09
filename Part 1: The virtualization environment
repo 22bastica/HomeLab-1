@@ -1,6 +1,114 @@
-erThis section will have me set up 2 VMs in WMware workstation 
+This section will have me set up 2 VMs in WMware workstation 
 The first VM will be a free Windows Enterprise VM and the second an Ubuntu based VM.
 All the links to resources used will be at the bottom of this page
 
 I want this lab to serve as an introduction to homelabs to me as well as give me more practice with and familiarity of VM's and virtualization environments in general.
 
+Setting Up the Virtual Environment (about 100GB of disk space in the end):
+
+1. First download and install the free trial of VMware Workstation, this lab requires some of the worksstation features later on so that is why I decided on Workstation vs VMware Player.
+
+2. Download and spin-up a free Windows VM that can be found on Microsoft's website. After Unzipping the ~20gb file I imported the .ovf file into VMware but did not start he machine quite yet. I gave this VM 4 cores and 8gb of RAM since I wanted to have plenty of left over resources for my own computer but didn't want a lag filled or sluggish VM.
+
+3. Download and install the Ubtuntu Server installer ISO into a new VM. Specifically the SERVER version because it comes preloaded with the necessary packages for this lab, the desktop flavor would cause issues and just be a waste of resources overall (in this use case specifically). 
+
+4.  I used the following specs for the Ubuntu VM:
+    a. Used the ISO image as the installer image
+    b. 14GB Disk Size (again, wanted to preserve resources since my host pc does have much disk space)
+    c. 2 CPU cores
+    d. 2GB RAM
+
+5. I had  to set a static IP address for this VM so that it doesn't change in the middle of the lab (this step is in the network connections section of the Ubuntu VM's setup). 
+    a. Get the gateway IP of the VMware workstation NAT network (edit -> virtual netowrk editor -> NAT settings)
+    b. copy down both the 'subnet IP' and the 'gateway IP'
+    c. In the Ubuntu installer change the interface from DHCPv4 to Manual and fill out the information with the subnet and gateway IPs from earlier
+
+6. Set a memorable password and username. Since this is just a lab I went with very simple login info
+  a. Your name: user
+  b. Your server's name: attack
+  c. Username: user
+  d. password: password
+
+7. Install OpenSSH server? check yes
+  a. after the VM is setup and rebooted (required for the setup process), I wanted to make sure DNS and outbound pings are actually working so I typed this command : 'ping -c 2 google.com'
+
+Setup The Windows VM (including disabling defender):
+
+1. This section is going to be mostly aiming to disable Microsoft Defender so that it doesn't get in the way with all the shady things planned. Windows makes this quite tricky so buckle in.
+
+2. Disable Tamper Protection (start -> settings -> privacy and security -> windows security -> virsu and threat protection -> manage settings -> toggle every option here off and close the window
+
+3. Disabling Defender through the Group Policy Editor. First open Command Prompt as an admin and run the following command 'gpedit.msc' 
+  a. Inside the local group policy editor go to computer configuration -> admin templates -> windows components -> turn off microsoft defender antivrus (double click and select 'enabled' which prevents Microsoft Defender Antivirus from running and it won't scan computers for malware or any other potentially unwanted software)
+  b. click apply and OK 
+
+4. Disabling Defender through registry
+  a. use the same admin cmd prompt and enter this command 'REG ADD "hklm\software\policies\microsoft\windows defender" /v DisableAntiSpyware /t REG_DWORD /d 1 /f' 
+
+5. Get ready to boot into Safe Mode to fully disable all Defender Services
+  a. type 'msconfig' into the search bar on the start menu and go to the boot tabComputer\HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\WdFilterboot options -> check the safe boot and minimal boxes then restart the system to enter Safe Mode
+
+6. Now that we're in safe mode we can disable some services with the registry. Type 'regedit' into the search bar and click enter. For each of the following registry location you will need to go to the 'start' value and change it to '4'
+  a. Computer\HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Sense
+  b. Computer\HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\WdBoot
+  c. Computer\HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\WinDefend  
+  d. Computer\HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\WdNisDrv 
+  e. Computer\HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\WdNisSvc
+  f. Computer\HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\WdFilter
+  g. Exit out of safe mode with -> msconfig -> boot -> boot options -> uncheck safe book then restart the computer
+
+7. Preventing the system from going into standby and installing sysmon. 
+  a. open an admin cmd prompt and enter these commands to allow the VM to stay awake while we mess around in it:
+      powercfg /change standby-timeout-ac 0
+      powercfg /change standby-timeout-dc 0
+      powercfg /change monitor-timeout-ac 0
+      powercfg /change monitor-timeout-dc 0
+      powercfg /change hibernate-timeout-ac 0
+      powercfg /change hibernate-timeout-dc 0
+  b. Installing Sysmon, this section is more optional since I won't really be using it tons here but I figured to include it so I can get more familiar with it in general.
+  c. First launch an admin Powershell console for the following: 
+        -download Sysmon: 'Invoke-WebRequest -Uri https://download.sysinternals.com/files/Sysmon.zip -OutFile C:\Windows\Temp\Sysmon.zip'
+        -unzip Sysmon: 'Expand-Archive -LiteralPath C:\Windows\Temp\Sysmon.zip -DestinationPath C:\Windows\Temp\Sysmon'
+        -Download SwiftOnSecurity's Sysmon config: 'Invoke-WebRequest -Uri https://raw.githubusercontent.com/SwiftOnSecurity/sysmon-config/master/sysmonconfig-export.xml -OutFile C:\Windows\Temp\Sysmon\sysmonconfig.xml'
+        -Install Sysmon with swift's config: 'C:\Windows\Temp\Sysmon\Sysmon64.exe -accepteula -i C:\Windows\Temp\Sysmon\sysmonconfig.xml'
+  d. In order to validate that sysmon is installed and running properly I ran this command: 'Get-Service sysmon64'
+        -To check for the precense of Sysmon Event Logs: 'Get-WinEvent -LogName "Microsoft-Windows-Sysmon/Operational" -MaxEvents 10'
+
+Install LimdaCharlie EDR on the Windows VM:
+I decided to use LimaCHarlie because it is a very powerful SecOps Cloud Platform as well as the fact that it handles all of the log shipping/ingestion and also has a threat detection engine. THe fact that it has a free tier for up to two systems was also a deciding factor.
+
+1. Make an account and setup an 'organization'; the only important setting here is the 'Extended Detectiona nd Response Standard' Template
+
+2. Once the organization is created, click on 'add sensor' 
+    a. select windows -> Description like 'Windows VM-Lab1' -> and select the key that we just made
+    b. I specified the x86-64 (.exe) sensor 
+    c. Move over to the windows VM and open an admin powershell prompt and input the following commands:
+          - 'cd C:\Users\User\Downloads'
+          - 'Invoke-WebRequest -Uri https://downloads.limacharlie.io/sensor/windows/64 -Outfile C:\Users\User\Downloads\lc_sensor.exe'
+    d. move over to a standard (not-admin) cmd prompt with this command: 'cmd.exe'
+    e. After all this, copy and paste the command that LimaCharlie provided (it's in orange text) into the open terminal. If this all worked correctly you shoudl see the VM pop up as a sensor in LimaCharlie.
+
+3. The next step is to setup LimaCharlie to also ship the Sysmon event logs alongside it's own EDR telemtry. Go to artifact collection -> add rule -> name: windows-sysmon-logs, platform: windows, path pattern: wel://Microsoft-Windows-Sysmon/Operational:*, retention period: 10  -> save rule. This rule allows LimaCharlie to start to ship sysmon logs which provides a ton of EDR-esq telemtry, some may be redundant but Sysmon is still a very powerful tool to run alongside any EDR agent. This is also when I took my first snapshot of each VM.
+
+Setting Up the Attack System:
+1. These steps are going to be from your host system and I will be using SSH to access the Linux VM. You can either use the built in SSH abilities in Windows or a third party solution like PuTTY. 
+
+2. Open a cmd promt and run the command: 'ssh user@[Linux_VM_IP] 
+
+3. In this new SSH session the next instructions are going to setup our attacker C2 server. First things first I dropped into a root shell to make my life a bit easier (sudo su)
+
+4. The following commands are used to download Sliver which is used as a C2 framework.
+    -Download Sliver Linux server binary
+      wget https://github.com/BishopFox/sliver/releases/download/v1.5.34/sliver-server_linux -O /usr/local/bin/sliver-server
+    -Make it executable
+      chmod +x /usr/local/bin/sliver-server
+    -install mingw-w64 for additional capabilities
+      apt install -y mingw-w64
+
+5. This next command will make a wokring directory for the future steps: 'mkdir -p /opt/sliver'
+
+
+Links:
+VMware (https://www.vmware.com/products/workstation-pro/workstation-pro-evaluation.html)
+Windows VM (https://developer.microsoft.com/en-us/windows/downloads/virtual-machines/)
+LimaCharlie (https://app.limacharlie.io)
