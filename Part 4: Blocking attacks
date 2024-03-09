@@ -1,3 +1,39 @@
 This part will focus on blocking attacks based on the principles that I learned in part 3, enjoy!
 
 Blocking Attacks:
+Part 3 taught me that I can make detection rules to identify the moment a threat occurs, but can we block the threats outright?
+One of the most critical aspects of blocking rules is to understand the baseline in the first place. After all you can't block something if you don't even know if its malicious right? In this part I will be using a more predicatble action that ransomware takes: deleting volume shadow copies.
+
+Why use this rule?
+Since volume shadow copies provide a good, convinient, way to restore individual files or even entire file systems this makes them an attractive option to recover from a ransomware attack. Because of this, it is a pretty predicatble characteristic of ransomware attacks. One command to achieve this is: 'vssadmin delete shadows /all'. This command would rarely (or realistically never) be ran in healthly environments. This makes the situatation a prime candidate for blocking rules: low false positive prevalance and high threat activity.
+
+Lets start detecting!
+
+1. Get the Linux and Windows VMs that we used before spun back up into a sliver c2 shell.
+
+2. Once back into the c2 shell on the victim, run the command we're looking to block: 'shell'
+    -type Y to 'This action is bad OPSEC, are you an adult?'
+
+3. Run the command: 'vssadmin delete shadows /all' in the new system shell
+    a. the output is not really important here, just running the command is enough the generate the necessary telemetry
+    b. run 'whoami' to verify that the systme shell is still active
+
+4. Run over to LimaCharlies detection tab to see if the default rules picked up on our activity
+    a. click on the detection then go to 'view event timeline' 
+    b. craft a D&R rule
+    c. respond section: - action: report
+                          name: vss_deletion_kill_it
+                        - action: task
+                          command:
+                            - deny_tree
+                             - <<routing/parent>>
+    d. the action:report fires off a detection, the action:task is what actually kills the parent process with the vssadmin delete shadows /all command deny tree
+
+Time to Block It!!
+
+1. Go back to the Sliver c2 sessions and rerun the command: 'vssadmin delete shadows /all' and see what happens
+    a. the command is suppossed to succeed but the action of the command running will trigger the D&R rule
+
+2. To test if the rule works we should check if the system is still active with 'whoami'
+    a. since the D&R rule worked properly the system shell will hang and fail to return since the parent process is terminated
+    b. kill the shell with ctrl+d
