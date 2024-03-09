@@ -11,4 +11,19 @@ Getting Adversarial:
 
 Now Time to Detect It:
 
-1. 
+1. Switch over to LimaCharlie so that we can find the relevant telemetry
+  a. because lsass.exe is a known sensitive process, any good EDR will generate events for this.
+  b. Filter for 'SENSITIVE_PROCESS_ACCESS' events 
+  c. now that I have selected an event, its time to make a D&R rule to alert us anytime this activity happens
+  d. The detect section of the rule (I am specifying that the detection should only look at 'SENSITIVE_PROCESS_ACCESS' events where the victim or target process ends with lsass.exe):
+        -event: SENSITIVE_PROCESS_ACCESS
+          op: ends with
+          path: event/*/TARGET/FILE_PATH
+          value: lsass.exe
+  e. here is the respond section (telling LimaCharlie to make a report anytime this detection occurs):
+        - action: report
+          name: LSASS access
+  f. I tested the rule on the bottom of the page ('test event' button) to be certain that it actually works 
+  g. Save the rule with the nam,e 'lsass accessed'
+
+2. rerun the procdump command and make sure that the detection rule works!
