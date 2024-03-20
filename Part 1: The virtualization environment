@@ -105,7 +105,7 @@ Setting Up the Attack System:
     -install mingw-w64 for additional capabilities
       apt install -y mingw-w64
 
-5. This next command will make a wokring directory for the future steps: 'mkdir -p /opt/sliver'
+5. This next command will make a working directory for the future steps: 'mkdir -p /opt/sliver'
 
 
 Links:
